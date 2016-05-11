@@ -20,7 +20,7 @@ public class Messenger {
 	private static void showMessage(String message, String title, Component parent, int messageType) {
 		JOptionPane.showMessageDialog(parent, message, title, messageType);
 	}
-	
+
 	/**
 	 * Displays a message dialog with a title centered in the parent for the user to read; closes with an OK button.
 	 * @param message message to display
