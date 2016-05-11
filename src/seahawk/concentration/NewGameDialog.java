@@ -13,9 +13,6 @@ import java.util.Set;
 public class NewGameDialog extends CustomDialog {
 	private static final long serialVersionUID = 1L;
 
-	private static final String[] SIZES = {"4x3", "4x4", "5x4", "6x5", "6x6"};
-	private static final Integer[] WORD_COUNTS = {6, 8, 10, 15, 18};
-
   private JComboBox<String> sizeComboBox;
   private JComboBox<Integer> wordCountComboBox;
 	private JPanel wordInputPanel;
@@ -31,8 +28,17 @@ public class NewGameDialog extends CustomDialog {
 		c.insets = new Insets(7, 7, 7, 7);
     c.anchor = GridBagConstraints.WEST;
 
-		sizeComboBox = new JComboBox<>(SIZES);
-    wordCountComboBox = new JComboBox<>(WORD_COUNTS);
+    int numberOfDefinedBoardSizes = ConcentrationBoard.BOARD_SIZES.length;
+    String[] boardSizes = new String[numberOfDefinedBoardSizes];
+    Integer[] wordCounts = new Integer[numberOfDefinedBoardSizes];
+    for (int idx = 0; idx < numberOfDefinedBoardSizes; idx++) {
+      ConcentrationBoard.BoardSize boardSize = ConcentrationBoard.BOARD_SIZES[idx];
+      boardSizes[idx] = boardSize.getColumnCount() + "x" + boardSize.getRowCount();
+      wordCounts[idx] = boardSize.getWordCount();
+    }
+
+		sizeComboBox = new JComboBox<>(boardSizes);
+    wordCountComboBox = new JComboBox<>(wordCounts);
 
     c.ipadx = 30;
     sizeComboBox.setBorder(BorderFactory.createTitledBorder(BorderFactory.createEmptyBorder(), "Board Size:"));
@@ -249,14 +255,6 @@ public class NewGameDialog extends CustomDialog {
 
   public boolean isAccepted() {
     return accepted;
-  }
-
-  public int getColumnCount() {
-    return Integer.parseInt(sizeComboBox.getSelectedItem().toString().substring(0, 1));
-  }
-
-  public int getRowCount() {
-    return Integer.parseInt(sizeComboBox.getSelectedItem().toString().substring(2, 3));
   }
 
   public BufferedImage getSelectedPuzzleImage() {

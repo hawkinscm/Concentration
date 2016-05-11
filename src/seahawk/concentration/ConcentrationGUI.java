@@ -2,15 +2,21 @@ package seahawk.concentration;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
-import java.awt.AlphaComposite;
-import java.awt.Dimension;
-import java.awt.Color;
-import java.awt.GridLayout;
-import java.awt.Graphics2D;
+import javax.swing.filechooser.FileNameExtensionFilter;
+import javax.swing.plaf.ColorUIResource;
+import java.awt.*;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.awt.image.BufferedImage;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 public class ConcentrationGUI extends JFrame {
   private static final long serialVersionUID = 1L;
@@ -18,6 +24,12 @@ public class ConcentrationGUI extends JFrame {
   private static BufferedImage icon = getTransparentImage("concen.png");
 
   private char keyBuffer = 0;
+  private List<CustomButton> buttonList = new ArrayList<>();
+  private boolean isDisplayingMatch = false;
+  private int selectedButtonIndex = -1;
+  private final ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1);
+
+  private ConcentrationBoard concentrationBoard;
 
   public ConcentrationGUI() {
     super("CONCENTRATION");
@@ -27,7 +39,8 @@ public class ConcentrationGUI extends JFrame {
     this.setSize(800, 800);
     this.setMinimumSize(new Dimension(800, 800));
     this.setResizable(true);
-    this.setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+    this.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
+    UIManager.put("textInactiveText", new ColorUIResource(Color.BLACK));
 
     this.createMenuBar();
 
@@ -49,8 +62,11 @@ public class ConcentrationGUI extends JFrame {
             keyBuffer = e.getKeyChar();
           }
           else {
-            buttonSelected("" + keyBuffer + e.getKeyChar());
+            selectButton(Integer.parseInt("" + keyBuffer + e.getKeyChar()) - 1);
           }
+        }
+        else {
+          keyBuffer = 0;
         }
       }
     });
@@ -70,6 +86,7 @@ public class ConcentrationGUI extends JFrame {
     gameMenu.add(newGameMenuItem);
 
     JMenuItem loadGameMenuItem = new JMenuItem("Load Game");
+    loadGameMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F3, 0));
     loadGameMenuItem.addActionListener(e -> loadGame());
     gameMenu.add(loadGameMenuItem);
 
@@ -85,36 +102,111 @@ public class ConcentrationGUI extends JFrame {
       return;
     }
 
+    ConcentrationBoard board = new ConcentrationBoard(newGameDialog.getWordList());
+    loadBoard(newGameDialog.getSelectedPuzzleImage(), board);
+  }
+
+  private void loadGame() {
+    JFileChooser gameChooser = new JFileChooser(".");
+    gameChooser.setFileFilter(new FileNameExtensionFilter("Concentration Files", "con"));
+    gameChooser.setDialogTitle("Select Concentration File");
+    int result = gameChooser.showDialog(this, "OK");
+
+    if (result == JFileChooser.APPROVE_OPTION) {
+      try (BufferedReader reader = new BufferedReader(new FileReader(gameChooser.getSelectedFile()))) {
+        BufferedImage puzzleImage = ImageIO.read(new File(reader.readLine()));
+        Set<String> wordList = new HashSet<>();
+        String nextLine;
+        while ((nextLine = reader.readLine()) != null) {
+          if (!nextLine.trim().isEmpty()) {
+            wordList.add(nextLine);
+          }
+        }
+
+        ConcentrationBoard board = new ConcentrationBoard(wordList);
+        loadBoard(puzzleImage, board);
+      }
+      catch (Exception e) {
+        Messenger.error(e, "Unable to load Concentration file", "Loading Error");
+      }
+    }
+  }
+
+  private void loadBoard(BufferedImage puzzleImage, ConcentrationBoard board) {
+    keyBuffer = 0;
+    selectedButtonIndex = -1;
+    isDisplayingMatch = false;
+
     this.getContentPane().removeAll();
+    buttonList.clear();
 
-    int row = newGameDialog.getRowCount();
-    int column = newGameDialog.getColumnCount();
+    BackgroundPanel backgroundPanel = new BackgroundPanel(puzzleImage);
+    this.getContentPane().add(backgroundPanel);
 
-    this.getContentPane().setLayout(new GridLayout(row, column));
+    int row = board.getRowCount();
+    int column = board.getColumnCount();
+    concentrationBoard = board;
 
-    Set<String> wordList = newGameDialog.getWordList();
-    for (int idx = 0; idx < wordList.size(); idx++) {
+    backgroundPanel.setLayout(new GridLayout(row, column));
+
+    String[] wordList = board.getWords();
+    for (int idx = 0; idx < wordList.length; idx++) {
       CustomButton button = new CustomButton("" + (idx + 1)) {
         @Override
         public void buttonClicked() {
-          buttonSelected(this.getText());
+          selectButton(buttonList.indexOf(this));
         }
       };
-      button.setName(button.getText());
+      button.setFont(new Font("Arial", Font.PLAIN, 20));
       button.setFocusable(false);
-      this.getContentPane().add(button);
+      backgroundPanel.add(button);
+      buttonList.add(button);
     }
 
     this.pack();
   }
 
-  private void loadGame() {
+  private synchronized void selectButton(int buttonIndex) {
+    keyBuffer = 0;
 
+    if (isDisplayingMatch || buttonIndex < 0 || buttonIndex >= buttonList.size()) {
+      return;
+    }
+
+    CustomButton selectedButton = buttonList.get(buttonIndex);
+    selectedButton.setEnabled(false);
+    selectedButton.setText(getHtmlWrappedText(concentrationBoard.getWords()[buttonIndex]));
+
+    if (selectedButtonIndex < 0) {
+      selectedButtonIndex = buttonIndex;
+    }
+    else {
+      isDisplayingMatch = true;
+      executor.schedule(createMatchEvaluationTask(buttonIndex, selectedButton), 1, TimeUnit.SECONDS);
+    }
   }
 
-  private void buttonSelected(String buttonNumber) {
-    Messenger.display(buttonNumber, "INFO", this);
-    keyBuffer = 0;
+  private String getHtmlWrappedText(String text) {
+    return "<html><center><font color=black>" + text + "</font></center></html>";
+  }
+
+  private Runnable createMatchEvaluationTask(int buttonIndex, CustomButton selectedButton) {
+    return () -> {
+      CustomButton previouslySelectedButton = buttonList.get(selectedButtonIndex);
+      if (concentrationBoard.isMatch(buttonIndex, selectedButtonIndex)) {
+        selectedButton.setVisible(false);
+        previouslySelectedButton.setVisible(false);
+      }
+      else {
+        selectedButton.setEnabled(true);
+        selectedButton.setText("" + (buttonIndex + 1));
+        previouslySelectedButton.setEnabled(true);
+        previouslySelectedButton.setText("" + (selectedButtonIndex + 1));
+      }
+
+      selectedButtonIndex = -1;
+      isDisplayingMatch = false;
+    };
   }
 
   public static void main(String[] args) {
