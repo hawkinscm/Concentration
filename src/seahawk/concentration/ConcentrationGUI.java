@@ -35,9 +35,9 @@ public class ConcentrationGUI extends JFrame {
     super("CONCENTRATION");
 
     this.setIconImage(icon);
-    this.setLocation(200, 50);
-    this.setSize(800, 800);
-    this.setMinimumSize(new Dimension(800, 800));
+    this.setLocation(200, 20);
+    this.setSize(700, 700);
+    this.setMinimumSize(new Dimension(700, 700));
     this.setResizable(true);
     this.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
     UIManager.put("textInactiveText", new ColorUIResource(Color.BLACK));
