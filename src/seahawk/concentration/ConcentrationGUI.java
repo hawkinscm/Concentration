@@ -174,6 +174,10 @@ public class ConcentrationGUI extends JFrame {
     }
 
     CustomButton selectedButton = buttonList.get(buttonIndex);
+    if (!selectedButton.isEnabled() || !selectedButton.isVisible()) {
+      return;
+    }
+
     selectedButton.setEnabled(false);
     selectedButton.setText(getHtmlWrappedText(concentrationBoard.getWords()[buttonIndex]));
 
@@ -182,7 +186,7 @@ public class ConcentrationGUI extends JFrame {
     }
     else {
       isDisplayingMatch = true;
-      executor.schedule(createMatchEvaluationTask(buttonIndex, selectedButton), 1, TimeUnit.SECONDS);
+      executor.schedule(createMatchEvaluationTask(buttonIndex, selectedButton), 1500, TimeUnit.MILLISECONDS);
     }
   }
 
